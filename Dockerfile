@@ -9,7 +9,8 @@ COPY package.json package-lock.json ./
 RUN npm ci
 
 COPY . .
-RUN VERSION_NUMBER="$VERSION_NUMBER" \
+RUN DATABASE_URL=/tmp/build.db \
+    VERSION_NUMBER="$VERSION_NUMBER" \
     BUILD_DATE="$BUILD_DATE" \
     npm run build \
     && npm prune --omit=dev
