@@ -2,6 +2,7 @@
 	import { getFixtures } from '#lib/fixtures.remote.ts';
 	import { deleteScene, getScenes, saveScene } from '#lib/scenes.remote.ts';
 	import { dmx } from '#lib/dmx.svelte.ts';
+	import { settings } from '#lib/settings.svelte.ts';
 	import { buildUniverse } from '#lib/universe.ts';
 
 	const fixtures = $derived(await getFixtures());
@@ -107,8 +108,11 @@
 			</label>
 			<div class="text-sm">
 				Program slot
-				<div class="mt-1 grid grid-cols-3 gap-1">
-					{#each Array.from({ length: 9 }, (_, i) => i) as i}
+				<div
+					class="mt-1 grid gap-1"
+					style="grid-template-columns: repeat({settings.columns}, minmax(0, 2rem));"
+				>
+					{#each Array.from({ length: settings.slotCount }, (_, i) => i) as i}
 						<button
 							type="button"
 							class="size-8 rounded text-xs {slot === i

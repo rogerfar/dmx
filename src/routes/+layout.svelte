@@ -12,7 +12,7 @@
 		{ href: '/', label: 'Program' },
 		{ href: '/scenes', label: 'Scenes' },
 		{ href: '/fixtures', label: 'Fixtures' },
-		{ href: '/output', label: 'Output' }
+		{ href: '/settings', label: 'Settings' }
 	];
 
 	onMount(() => dmx.autoConnect());

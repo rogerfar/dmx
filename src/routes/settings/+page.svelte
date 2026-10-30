@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { dmx, PROTOCOLS } from '#lib/dmx.svelte.ts';
+	import { settings } from '#lib/settings.svelte.ts';
 
 	let testChannel = $state(100);
 
@@ -12,8 +13,35 @@
 	const hex = (n: number) => '0x' + n.toString(16).padStart(4, '0');
 </script>
 
-<h1 class="mb-4 text-xl font-semibold">DMX output</h1>
+<h1 class="mb-4 text-xl font-semibold">Settings</h1>
 
+<h2 class="mb-2 font-medium">Program grid</h2>
+<div class="mb-6 flex gap-4 rounded-lg bg-neutral-900 p-4 text-sm">
+	<label
+		>Columns
+		<input
+			type="number"
+			min="1"
+			max="8"
+			value={settings.columns}
+			onchange={(e) => settings.setGrid(e.currentTarget.valueAsNumber, settings.rows)}
+			class="mt-1 block w-20 rounded bg-neutral-800 p-2"
+		/>
+	</label>
+	<label
+		>Rows
+		<input
+			type="number"
+			min="1"
+			max="8"
+			value={settings.rows}
+			onchange={(e) => settings.setGrid(settings.columns, e.currentTarget.valueAsNumber)}
+			class="mt-1 block w-20 rounded bg-neutral-800 p-2"
+		/>
+	</label>
+</div>
+
+<h2 class="mb-2 font-medium">DMX output</h2>
 {#if !dmx.supported}
 	<p class="rounded-lg bg-red-950 p-4 text-red-300">
 		This browser has no WebUSB. Use Chrome or Edge (over https or localhost).

@@ -2,32 +2,33 @@
 	import { dmx } from '#lib/dmx.svelte.ts';
 	import { getFixtures } from '#lib/fixtures.remote.ts';
 	import { getScenes } from '#lib/scenes.remote.ts';
+	import { settings } from '#lib/settings.svelte.ts';
 	import { buildUniverse } from '#lib/universe.ts';
 
-	let activeIds = $state<number[]>([]);
+	let activeId = $state<number | null>(null);
+	let master = $state(100);
 	const scenes = $derived(await getScenes());
 	const fixtures = $derived(await getFixtures());
-	const slots = $derived(Array.from({ length: 9 }, (_, i) => scenes.find((s) => s.slot === i)));
+	const slots = $derived(
+		Array.from({ length: settings.slotCount }, (_, i) => scenes.find((s) => s.slot === i))
+	);
 
-	// Active scenes are layered; where they overlap, the highest value per channel wins.
 	function apply() {
-		const out = new Uint8Array(512);
-		for (const scene of scenes.filter((s) => activeIds.includes(s.id))) {
-			const u = buildUniverse(scene.values, fixtures);
-			for (let i = 0; i < 512; i++) out[i] = Math.max(out[i], u[i]);
-		}
-		dmx.set(out);
+		const scene = scenes.find((s) => s.id === activeId);
+		if (!scene) return dmx.blackout();
+		const universe = buildUniverse(scene.values, fixtures);
+		for (let i = 0; i < 512; i++) universe[i] = Math.round((universe[i] * master) / 100);
+		dmx.set(universe);
 	}
 
+	// Only one scene can be active; selecting it again turns it off.
 	function toggle(scene: (typeof scenes)[number]) {
-		activeIds = activeIds.includes(scene.id)
-			? activeIds.filter((id) => id !== scene.id)
-			: [...activeIds, scene.id];
+		activeId = activeId === scene.id ? null : scene.id;
 		apply();
 	}
 
 	function blackout() {
-		activeIds = [];
+		activeId = null;
 		dmx.blackout();
 	}
 </script>
@@ -42,15 +43,31 @@
 
 {#if dmx.status !== 'connected'}
 	<p class="mb-4 rounded bg-amber-950 p-3 text-sm text-amber-300">
-		No DMX device connected. <a href="/output" class="underline">Connect one</a> to send output.
+		No DMX device connected. <a href="/settings" class="underline">Connect one</a> to send output.
 	</p>
 {/if}
 
-<div class="grid aspect-square max-h-[75vh] grid-cols-3 gap-3">
+<label class="mb-4 flex items-center gap-4 rounded-lg bg-neutral-900 p-4 text-sm">
+	<span class="w-16 shrink-0 font-medium">Master</span>
+	<input
+		type="range"
+		min="0"
+		max="100"
+		bind:value={master}
+		oninput={apply}
+		class="grow accent-amber-500"
+	/>
+	<span class="w-12 text-right tabular-nums">{master}%</span>
+</label>
+
+<div
+	class="grid gap-3"
+	style="grid-template-columns: repeat({settings.columns}, minmax(0, 1fr)); aspect-ratio: {settings.columns} / {settings.rows}; max-height: 75vh;"
+>
 	{#each slots as scene, i (i)}
 		{#if scene}
 			<button
-				class="rounded-lg p-2 text-lg font-semibold transition {activeIds.includes(scene.id)
+				class="rounded-lg p-2 text-lg font-semibold transition {activeId === scene.id
 					? 'bg-amber-500 text-black'
 					: 'bg-neutral-800 hover:bg-neutral-700'}"
 				onclick={() => toggle(scene)}>{scene.name}</button
