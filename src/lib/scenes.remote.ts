@@ -36,7 +36,10 @@ export const saveScene = command(SceneInput, async (input) => {
 				.returning({ id: scenes.id })
 				.get().id;
 		} else {
-			tx.update(scenes).set({ name: input.name, slot: input.slot }).where(eq(scenes.id, sceneId)).run();
+			tx.update(scenes)
+				.set({ name: input.name, slot: input.slot })
+				.where(eq(scenes.id, sceneId))
+				.run();
 			tx.delete(sceneValues).where(eq(sceneValues.sceneId, sceneId)).run();
 		}
 		if (input.values.length) {

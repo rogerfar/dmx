@@ -1,0 +1,128 @@
+name: Build image and deploy
+
+on:
+  push:
+    branches: ['develop', 'main']
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  id-token: write
+  contents: write
+  packages: write
+  checks: write
+
+jobs:
+  build-and-push:
+    name: Build image and Push
+    runs-on: ubuntu-latest
+
+    outputs:
+      image: ${{ steps.build-image.outputs.image }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Increment latest version tag
+        run: |
+          # Retry mechanism
+          $maxRetries = 5
+          $retryDelay = 5
+          $attempt = 0
+          $success = $false      
+          while ($attempt -lt $maxRetries -and -not $success) {
+            try {
+              git fetch --tags
+              $tags = git tag --sort=-v:refname | Where-Object { $_ -match '^\d+\.\d+\.\d+\.\d+$' }
+              $latestTag = $tags -split '\n' | Select-Object -First 1
+              $versionNumbers = $latestTag -split '\.'
+              $versionNumbers[-1] = [string]([int]$versionNumbers[-1] + 1)
+              $newVersion = $versionNumbers -join '.'
+              Write-Output "New incremented version is $newVersion"
+              echo "NEXT_VERSION=$newVersion" | Out-File -Append -FilePath $Env:GITHUB_ENV
+              git tag $newVersion
+              git push origin $newVersion
+              $success = $true
+              Write-Output "Tag $newVersion pushed successfully!"
+            } catch {
+              Write-Output "Failed to push tag $newVersion. Attempt $($attempt + 1) of $maxRetries."
+              Write-Output "Error details: $($_.Exception.Message)"
+              $attempt++
+              if ($attempt -lt $maxRetries) {
+                Write-Output "Retrying in $retryDelay seconds..."
+                Start-Sleep -Seconds $retryDelay
+              } else {
+                Write-Error "Failed to push tag $newVersion after $maxRetries attempts. Exiting."
+                exit 1
+              }
+            }
+          }
+        shell: pwsh
+
+      - name: Login to GHCR
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.repository_owner }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build, tag, and push image to GitHub
+        id: build-image
+        env:
+          BRANCH_NAME: ${{ github.ref_name }}
+          COMMIT_SHA: ${{ github.sha }}
+          NEXT_VERSION: ${{ env.NEXT_VERSION }}
+        run: |
+          BUILD_DATE=$(date -u +'%Y-%m-%dT%H:%M:%SZ')
+          # Build and tag for ECR
+          docker build \
+            --build-arg BRANCH_NAME=$BRANCH_NAME \
+            --build-arg COMMIT_SHA=$COMMIT_SHA \
+            --build-arg VERSION_NUMBER=${{ env.NEXT_VERSION }} \
+            --build-arg BUILD_DATE=$BUILD_DATE \
+            -t rogerfar/dmx:$COMMIT_SHA .
+            
+          # Tag for GHCR
+          docker tag rogerfar/dmx:$COMMIT_SHA ghcr.io/rogerfar/dmx:${{ env.BRANCH_NAME }}
+          docker tag rogerfar/dmx:$COMMIT_SHA ghcr.io/rogerfar/dmx:${{ env.NEXT_VERSION }}
+          docker tag rogerfar/dmx:$COMMIT_SHA ghcr.io/rogerfar/dmx:latest
+
+          # Push with retry
+          n=0
+          until [ "$n" -ge 3 ]
+          do
+            docker push --all-tags ghcr.io/rogerfar/dmx && break
+            n=$((n+1))
+            echo "GHCR push failed (attempt $n). Retrying in 10s..."
+            sleep 10
+          done
+          if [ "$n" -ge 3 ]; then
+            echo "GHCR push failed after 3 attempts"
+            exit 1
+          fi
+
+          echo "image=rogerfar/dmx:$COMMIT_SHA" >> $GITHUB_OUTPUT
+
+      - name: Update Service via Webhook
+        env:
+          PORTAINER_WEBHOOK_URL: https://portainer.versluis.ca/api/stacks/webhooks/6c3fab7c-7072-4106-adb3-76646c9c3a67
+        run: |
+          if [ -z "$PORTAINER_WEBHOOK_URL" ]; then
+            echo "::warning::PORTAINER_WEBHOOK_URL is not configured; skipping webhook."
+            exit 0
+          fi
+
+          curl_status=0
+          response=$(curl --silent --show-error --fail-with-body --request POST \
+            --write-out '\nHTTP status: %{http_code}\n' \
+            "$PORTAINER_WEBHOOK_URL" 2>&1) || curl_status=$?
+
+          printf '%s\n' "$response"
+          if [ "$curl_status" -ne 0 ]; then
+            echo "::warning::Webhook request failed (curl exit code $curl_status); continuing."
+          fi
+          exit 0

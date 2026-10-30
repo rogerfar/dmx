@@ -1,0 +1,14 @@
+node_modules
+build
+.svelte-kit
+.git
+.github
+.opencode
+.vscode
+.env
+.env.*
+*.db
+*.db-shm
+*.db-wal
+Dockerfile
+.dockerignore

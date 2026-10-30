@@ -13,7 +13,10 @@ const Fixture = v.object({
 
 function normalize(f: v.InferOutput<typeof Fixture>) {
 	if (f.address + f.channelCount - 1 > 512) error(400, 'Fixture exceeds DMX universe (512)');
-	const channelLabels = Array.from({ length: f.channelCount }, (_, i) => f.channelLabels[i]?.trim() ?? '');
+	const channelLabels = Array.from(
+		{ length: f.channelCount },
+		(_, i) => f.channelLabels[i]?.trim() ?? ''
+	);
 	return { ...f, channelLabels };
 }
 
