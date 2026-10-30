@@ -109,7 +109,7 @@ jobs:
 
       - name: Update Service via Webhook
         env:
-          PORTAINER_WEBHOOK_URL: https://portainer.versluis.ca/api/stacks/webhooks/6c3fab7c-7072-4106-adb3-76646c9c3a67
+          PORTAINER_WEBHOOK_URL: https://portainer.versluis.ca/api/stacks/webhooks/f23550be-ffc5-477c-bcbd-f32331016295
         run: |
           if [ -z "$PORTAINER_WEBHOOK_URL" ]; then
             echo "::warning::PORTAINER_WEBHOOK_URL is not configured; skipping webhook."
